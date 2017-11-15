@@ -1,1 +1,1 @@
-# mediaSDK_wrapper
+# mediaSDK_wrapper[GitHub Link](https://github.com/ltqusst/mediaSDK_wrapper)some information on media SDK    *  (https://github.com/ltqusst/video_notes/wiki/media-SDK)    *  (https://software.intel.com/en-us/articles/media-sdk-tutorials-for-client-and-server)
