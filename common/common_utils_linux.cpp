@@ -16,11 +16,12 @@ Copyright(c) 2005-2014 Intel Corporation. All Rights Reserved.
 #include "common_utils.h"
 #include "common_vaapi.h"
 
+
 /* =====================================================
  * Linux implementation of OS-specific utility functions
  */
 
-mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, MFXVideoSession* pSession, mfxFrameAllocator* pmfxAllocator, bool bCreateSharedHandles)
+mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, MFXVideoSession* pSession, mfxFrameAllocator* pmfxAllocator)
 {
     mfxStatus sts = MFX_ERR_NONE;
 
@@ -28,10 +29,7 @@ mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, MFXVideoSession* pSession, mf
     sts = pSession->Init(impl, &ver);
     MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
-    // Create VA display
-    mfxHDL displayHandle = { 0 };
-    sts = CreateVAEnvDRM(&displayHandle);
-    MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+    mfxHDL displayHandle = VAHandle::get();
 
     // Provide VA display handle to Media SDK
     sts = pSession->SetHandle(static_cast < mfxHandleType >(MFX_HANDLE_VA_DISPLAY), displayHandle);
@@ -39,14 +37,6 @@ mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, MFXVideoSession* pSession, mf
 
     // If mfxFrameAllocator is provided it means we need to setup  memory allocator
     if (pmfxAllocator) {
-
-        pmfxAllocator->pthis  = *pSession; // We use Media SDK session ID as the allocation identifier
-        pmfxAllocator->Alloc  = simple_alloc;
-        pmfxAllocator->Free   = simple_free;
-        pmfxAllocator->Lock   = simple_lock;
-        pmfxAllocator->Unlock = simple_unlock;
-        pmfxAllocator->GetHDL = simple_gethdl;
-
         // Since we are using video memory we must provide Media SDK with an external allocator
         sts = pSession->SetFrameAllocator(pmfxAllocator);
         MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
@@ -57,7 +47,6 @@ mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, MFXVideoSession* pSession, mf
 
 void Release()
 {
-    CleanupVAEnvDRM();
 }
 
 void mfxGetTime(mfxTime* timestamp)

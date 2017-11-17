@@ -26,6 +26,16 @@ Copyright(c) 2005-2014 Intel Corporation. All Rights Reserved.
 #include "bits/linux_defs.h"
 #endif
 
+#define ANSI_BOLD 			"\033[1m"
+#define ANSI_COLOR_RED     "\x1b[31m"
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_YELLOW  "\x1b[33m"
+#define ANSI_COLOR_BLUE    "\x1b[34m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
+#define ANSI_COLOR_CYAN    "\x1b[36m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
+
+
 // =================================================================
 // Helper macro definitions...
 #define MSDK_PRINT_RET_MSG(ERR)         {PrintErrString(ERR, __FILE__, __LINE__);}
@@ -95,7 +105,7 @@ typedef struct {
 int GetFreeTaskIndex(Task* pTaskPool, mfxU16 nPoolSize);
 
 // Initialize Intel Media SDK Session, device/display and memory manager
-mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, MFXVideoSession* pSession, mfxFrameAllocator* pmfxAllocator, bool bCreateSharedHandles = false);
+mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, MFXVideoSession* pSession, mfxFrameAllocator* pmfxAllocator);
 
 // Release resources (device/display)
 void Release();

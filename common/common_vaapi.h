@@ -23,6 +23,15 @@ Copyright(c) 2005-2014 Intel Corporation. All Rights Reserved.
 #include "va/va.h"
 #include "va/va_drm.h"
 
+class VAHandle
+{
+public:
+	~VAHandle();
+	static mfxHDL get(void);
+private:
+	mfxHDL displayHandle;
+};
+
 // =================================================================
 // VAAPI functionality required to manage VA surfaces
 mfxStatus CreateVAEnvDRM(mfxHDL* displayHandle);
