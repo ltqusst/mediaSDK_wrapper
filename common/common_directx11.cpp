@@ -9,8 +9,7 @@ Copyright(c) 2005-2014 Intel Corporation. All Rights Reserved.
 *****************************************************************************/
 
 #include "common_directx11.h"
-
-#include<map>
+#include "videoframe_allocator.h"
 
 CComPtr<ID3D11Device>                   g_pD3D11Device;
 CComPtr<ID3D11DeviceContext>            g_pD3D11Ctx;
@@ -143,7 +142,7 @@ void ClearRGBSurfaceD3D(mfxMemId memId)
 //
 // Intel Media SDK memory allocator entrypoints....
 //
-mfxStatus do_alloc(mfxFrameAllocRequest* request, mfxFrameAllocResponse* response)
+mfxStatus mem_allocator_video::do_alloc(mfxFrameAllocRequest* request, mfxFrameAllocResponse* response)
 {
     HRESULT hRes;
 
@@ -268,7 +267,7 @@ mfxStatus do_alloc(mfxFrameAllocRequest* request, mfxFrameAllocResponse* respons
 }
 
 
-mfxStatus do_lock(mfxMemId mid, mfxFrameData* ptr)
+mfxStatus mem_allocator_video::do_lock(mfxMemId mid, mfxFrameData* ptr)
 {
     HRESULT hRes = S_OK;
 
@@ -335,7 +334,7 @@ mfxStatus do_lock(mfxMemId mid, mfxFrameData* ptr)
     return MFX_ERR_NONE;
 }
 
-mfxStatus do_unlock(mfxMemId mid, mfxFrameData* ptr)
+mfxStatus mem_allocator_video::do_unlock(mfxMemId mid, mfxFrameData* ptr)
 {
     CustomMemId*        memId       = (CustomMemId*)mid;
     ID3D11Texture2D*    pSurface    = (ID3D11Texture2D*)memId->memId;
@@ -359,7 +358,7 @@ mfxStatus do_unlock(mfxMemId mid, mfxFrameData* ptr)
     return MFX_ERR_NONE;
 }
 
-mfxStatus do_gethdl( mfxMemId mid, mfxHDL* handle)
+mfxStatus mem_allocator_video::do_gethdl( mfxMemId mid, mfxHDL* handle)
 {
     if (NULL == handle)
         return MFX_ERR_INVALID_HANDLE;
@@ -374,7 +373,7 @@ mfxStatus do_gethdl( mfxMemId mid, mfxHDL* handle)
 }
 
 
-mfxStatus do_free(mfxFrameAllocResponse* response)
+mfxStatus mem_allocator_video::do_free(mfxFrameAllocResponse* response)
 {
     if (response->mids) {
         for (mfxU32 i = 0; i < response->NumFrameActual; i++) {

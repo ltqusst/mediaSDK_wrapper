@@ -11,17 +11,6 @@ Copyright(c) 2005-2014 Intel Corporation. All Rights Reserved.
 #include "common_vaapi.h"
 #include "videoframe_allocator.h"
 
-#include <map>
-
-struct sharedResponse {
-    mfxFrameAllocResponse mfxResponse;
-    int refCount;
-};
-std::map<mfxHDL, sharedResponse> allocDecodeResponses;
-
-std::map<mfxMemId*, mfxHDL>      allocResponses;
-
-
 mfxStatus va_to_mfx_status(VAStatus va_res)
 {
     mfxStatus mfxRes = MFX_ERR_NONE;
@@ -170,18 +159,11 @@ struct vaapiMemId {
 };
 
 
-//===================================================================
-mfxStatus do_alloc(mfxFrameAllocRequest* request, mfxFrameAllocResponse* response);
-mfxStatus do_free(mfxFrameAllocResponse* response);
-mfxStatus do_lock(mfxMemId mid, mfxFrameData* ptr);
-mfxStatus do_unlock(mfxMemId mid, mfxFrameData* ptr);
-mfxStatus do_gethdl(mfxMemId mid, mfxHDL* handle);
-
 //
 // Media SDK memory allocator entrypoints....
 //
 
-mfxStatus do_alloc(mfxFrameAllocRequest* request, mfxFrameAllocResponse* response)
+mfxStatus mem_allocator_video::do_alloc(mfxFrameAllocRequest* request, mfxFrameAllocResponse* response)
 {
     mfxStatus mfx_res = MFX_ERR_NONE;
     VAStatus va_res = VA_STATUS_SUCCESS;
@@ -292,7 +274,7 @@ mfxStatus do_alloc(mfxFrameAllocRequest* request, mfxFrameAllocResponse* respons
     return mfx_res;
 }
 
-mfxStatus do_free(mfxFrameAllocResponse* response)
+mfxStatus mem_allocator_video::do_free(mfxFrameAllocResponse* response)
 {
     vaapiMemId* vaapi_mids = NULL;
     VASurfaceID* surfaces = NULL;
@@ -323,7 +305,7 @@ mfxStatus do_free(mfxFrameAllocResponse* response)
 	return MFX_ERR_NONE;
 }
 
-mfxStatus do_lock(mfxMemId mid, mfxFrameData* ptr)
+mfxStatus mem_allocator_video::do_lock(mfxMemId mid, mfxFrameData* ptr)
 {
     mfxStatus mfx_res = MFX_ERR_NONE;
     VAStatus va_res = VA_STATUS_SUCCESS;
@@ -426,7 +408,7 @@ mfxStatus do_lock(mfxMemId mid, mfxFrameData* ptr)
     return mfx_res;
 }
 
-mfxStatus do_unlock(mfxMemId mid, mfxFrameData* ptr)
+mfxStatus mem_allocator_video::do_unlock(mfxMemId mid, mfxFrameData* ptr)
 {
     vaapiMemId* vaapi_mid = (vaapiMemId*) mid;
 
@@ -450,7 +432,7 @@ mfxStatus do_unlock(mfxMemId mid, mfxFrameData* ptr)
     return MFX_ERR_NONE;
 }
 
-mfxStatus do_gethdl(mfxMemId mid, mfxHDL* handle)
+mfxStatus mem_allocator_video::do_gethdl(mfxMemId mid, mfxHDL* handle)
 {
     vaapiMemId* vaapi_mid = (vaapiMemId*) mid;
 
@@ -458,109 +440,6 @@ mfxStatus do_gethdl(mfxMemId mid, mfxHDL* handle)
         return MFX_ERR_INVALID_HANDLE;
 
     *handle = vaapi_mid->m_surface; //VASurfaceID* <-> mfxHDL
-    return MFX_ERR_NONE;
-}
-//============================================================================
-
-
-mfxStatus simple_alloc(mfxHDL pthis, mfxFrameAllocRequest* request,
-                       mfxFrameAllocResponse* response)
-{
-    mfxStatus sts = MFX_ERR_NONE;
-
-    if (0 == request || 0 == response || 0 == request->NumFrameSuggested)
-        return MFX_ERR_MEMORY_ALLOC;
-
-    if ((request->Type & (MFX_MEMTYPE_VIDEO_MEMORY_DECODER_TARGET |
-                          MFX_MEMTYPE_VIDEO_MEMORY_PROCESSOR_TARGET)) == 0)
-        return MFX_ERR_UNSUPPORTED;
-
-    if (request->NumFrameSuggested <=
-        allocDecodeResponses[pthis].mfxResponse.NumFrameActual
-        && MFX_MEMTYPE_EXTERNAL_FRAME & request->Type
-        && MFX_MEMTYPE_FROM_DECODE & request->Type
-        &&allocDecodeResponses[pthis].mfxResponse.NumFrameActual != 0) {
-        // Memory for this request was already allocated during manual allocation stage. Return saved response
-        //   When decode acceleration device (VAAPI) is created it requires a list of VAAPI surfaces to be passed.
-        //   Therefore Media SDK will ask for the surface info/mids again at Init() stage, thus requiring us to return the saved response
-        //   (No such restriction applies to Encode or VPP)
-
-        *response = allocDecodeResponses[pthis].mfxResponse;
-        allocDecodeResponses[pthis].refCount++;
-
-    } else {
-        sts = do_alloc(request, response);
-
-        if (MFX_ERR_NONE == sts) {
-            if (MFX_MEMTYPE_EXTERNAL_FRAME & request->Type &&
-                MFX_MEMTYPE_FROM_DECODE & request->Type) {
-                // Decode alloc response handling
-                allocDecodeResponses[pthis].mfxResponse = *response;
-                allocDecodeResponses[pthis].refCount++;
-                //allocDecodeRefCount[pthis]++;
-            } else {
-                // Encode and VPP alloc response handling
-                allocResponses[response->mids] = pthis;
-            }
-        }
-    }
-
-    return sts;
-}
-
-mfxStatus simple_lock(mfxHDL pthis, mfxMemId mid, mfxFrameData* ptr)
-{
-	return do_lock(mid, ptr);
-}
-
-mfxStatus simple_unlock(mfxHDL pthis, mfxMemId mid, mfxFrameData* ptr)
-{
-	return do_unlock(mid, ptr);
-}
-
-mfxStatus simple_gethdl(mfxHDL pthis, mfxMemId mid, mfxHDL* handle)
-{
-	return do_gethdl(mid, handle);
-}
-
-
-
-mfxStatus _simple_free(mfxHDL pthis, mfxFrameAllocResponse* response)
-{
-    bool actualFreeMemory = false;
-
-    //only do it if
-    //   it's ours
-    //   refcount is 0
-
-    if (0 == memcmp(response, &(allocDecodeResponses[pthis].mfxResponse), sizeof(*response))) {
-        allocDecodeResponses[pthis].refCount--;
-        if (0 == allocDecodeResponses[pthis].refCount)
-            actualFreeMemory = true;
-    }; // else actualFreeMemory = true;
-
-    if (actualFreeMemory) {
-    	do_free(response);
-    }
-    return MFX_ERR_NONE;
-}
-
-mfxStatus simple_free(mfxHDL pthis, mfxFrameAllocResponse* response)
-{
-    if (!response) return MFX_ERR_NULL_PTR;
-
-    if (allocResponses.find(response->mids) == allocResponses.end()) {
-        // Decode free response handling
-        if (--allocDecodeResponses[pthis].refCount == 0) {
-            _simple_free(pthis,response);
-            allocDecodeResponses.erase(pthis);
-        }
-    } else {
-        // Encode and VPP free response handling
-        allocResponses.erase(response->mids);
-        _simple_free(pthis,response);
-    }
-
     return MFX_ERR_NONE;
 }
 

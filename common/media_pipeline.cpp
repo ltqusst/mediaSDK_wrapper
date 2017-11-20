@@ -306,7 +306,8 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
 
             phddlSurfaceVPP = static_cast<surface1 *>(pmfxOutSurfaceVPP);
 
-            //printf("%s:%d, %d,%d, id:dec_  ,vpp_%d\n",__FUNCTION__,__LINE__, bRunningDEC, bOutReadyDEC, vpp_id);
+            if(m_debug == Debug::yes)
+            	printf("%s:%d, [%d,%d] vpp_id %d, sts:%d syncpV:%p\n",__FILE__,__LINE__, bRunningDEC, bOutReadyDEC, vpp_id, sts, syncpV);
 
             switch(sts)
             {
@@ -330,7 +331,7 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
             if (MFX_ERR_NONE <= sts && syncpV){
             	// ignore warnings if output is available
    				// Synchronize. Wait until decoded frame is ready
-    			if (MFX_ERR_NONE == session.SyncOperation(syncpV, 60000)) {
+    			if (MFX_ERR_NONE == (sts=session.SyncOperation(syncpV, 60000))) {
 
     				//reserve VPP output surface & find corresponding decode output
     				spVPP.reserve(phddlSurfaceVPP);
@@ -376,6 +377,9 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
     				}
 
     				vpp_id++;
+    			}else{
+    				if(m_debug == Debug::out || m_debug == Debug::yes)
+    					fprintf(stderr, ANSI_BOLD ANSI_COLOR_RED "%s:%d SyncOperation() failed with %d\n" ANSI_COLOR_RESET, __FILE__,__LINE__, sts);
     			}
             }
     	}

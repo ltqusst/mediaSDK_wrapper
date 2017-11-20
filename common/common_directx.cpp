@@ -9,8 +9,8 @@ Copyright(c) 2005-2014 Intel Corporation. All Rights Reserved.
 *****************************************************************************/
 
 #include "common_directx.h"
+#include "videoframe_allocator.h"
 
-#include<map>
 
 #define D3DFMT_NV12                     (D3DFORMAT)MAKEFOURCC('N','V','1','2')
 #define D3DFMT_YV12                     (D3DFORMAT)MAKEFOURCC('Y','V','1','2')
@@ -23,10 +23,6 @@ IDirectXVideoAccelerationService*       pDXVAServiceDec = NULL;
 IDirectXVideoAccelerationService*       pDXVAServiceVPP = NULL;
 
 bool                                    g_bCreateSharedHandles = false;
-
-std::map<mfxMemId*, mfxHDL>             allocResponses;
-std::map<mfxHDL, mfxFrameAllocResponse> allocDecodeResponses;
-std::map<mfxHDL, int>                   allocDecodeRefCount;
 
 const struct {
     mfxIMPL impl;       // actual implementation
@@ -167,7 +163,7 @@ void ClearRGBSurfaceD3D(mfxMemId memId)
 //
 // Media SDK memory allocator entrypoints....
 //
-mfxStatus _simple_alloc(mfxFrameAllocRequest* request, mfxFrameAllocResponse* response)
+mfxStatus mem_allocator_video::do_alloc(mfxFrameAllocRequest* request, mfxFrameAllocResponse* response)
 {
     DWORD   DxvaType;
     HRESULT hr = S_OK;
@@ -262,45 +258,8 @@ mfxStatus _simple_alloc(mfxFrameAllocRequest* request, mfxFrameAllocResponse* re
     return MFX_ERR_NONE;
 }
 
-mfxStatus simple_alloc(mfxHDL pthis, mfxFrameAllocRequest* request, mfxFrameAllocResponse* response)
+mfxStatus mem_allocator_video::do_lock(mfxMemId mid, mfxFrameData* ptr)
 {
-    mfxStatus sts = MFX_ERR_NONE;
-
-    if (request->Type & MFX_MEMTYPE_SYSTEM_MEMORY)
-        return MFX_ERR_UNSUPPORTED;
-
-    if (allocDecodeResponses.find(pthis) != allocDecodeResponses.end() &&
-        MFX_MEMTYPE_EXTERNAL_FRAME & request->Type &&
-        MFX_MEMTYPE_FROM_DECODE & request->Type) {
-        // Memory for this request was already allocated during manual allocation stage. Return saved response
-        //   When decode acceleration device (DXVA) is created it requires a list of D3D surfaces to be passed.
-        //   Therefore Media SDK will ask for the surface info/mids again at Init() stage, thus requiring us to return the saved response
-        //   (No such restriction applies to Encode or VPP)
-        *response = allocDecodeResponses[pthis];
-        allocDecodeRefCount[pthis]++;
-    } else {
-        sts = _simple_alloc(request, response);
-
-        if (MFX_ERR_NONE == sts) {
-            if ( MFX_MEMTYPE_EXTERNAL_FRAME & request->Type &&
-                 MFX_MEMTYPE_FROM_DECODE & request->Type) {
-                // Decode alloc response handling
-                allocDecodeResponses[pthis] = *response;
-                allocDecodeRefCount[pthis]++;
-            } else {
-                // Encode and VPP alloc response handling
-                allocResponses[response->mids] = pthis;
-            }
-        }
-    }
-
-    return sts;
-}
-
-mfxStatus simple_lock(mfxHDL pthis, mfxMemId mid, mfxFrameData* ptr)
-{
-    pthis; // To suppress warning for this unused parameter
-
     IDirect3DSurface9* pSurface = (IDirect3DSurface9*)mid;
 
     if (pSurface == 0) return MFX_ERR_INVALID_HANDLE;
@@ -346,10 +305,8 @@ mfxStatus simple_lock(mfxHDL pthis, mfxMemId mid, mfxFrameData* ptr)
     return MFX_ERR_NONE;
 }
 
-mfxStatus simple_unlock(mfxHDL pthis, mfxMemId mid, mfxFrameData* ptr)
+mfxStatus mem_allocator_video::do_unlock(mfxMemId mid, mfxFrameData* ptr)
 {
-    pthis; // To suppress warning for this unused parameter
-
     IDirect3DSurface9* pSurface = (IDirect3DSurface9*)mid;
 
     if (pSurface == 0) return MFX_ERR_INVALID_HANDLE;
@@ -367,10 +324,8 @@ mfxStatus simple_unlock(mfxHDL pthis, mfxMemId mid, mfxFrameData* ptr)
     return MFX_ERR_NONE;
 }
 
-mfxStatus simple_gethdl(mfxHDL pthis, mfxMemId mid, mfxHDL* handle)
+mfxStatus mem_allocator_video::do_gethdl(mfxMemId mid, mfxHDL* handle)
 {
-    pthis; // To suppress warning for this unused parameter
-
     if (handle == 0) return MFX_ERR_INVALID_HANDLE;
 
     *handle = mid;
@@ -378,7 +333,7 @@ mfxStatus simple_gethdl(mfxHDL pthis, mfxMemId mid, mfxHDL* handle)
 }
 
 
-mfxStatus _simple_free(mfxFrameAllocResponse* response)
+mfxStatus mem_allocator_video::do_free(mfxFrameAllocResponse* response)
 {
     if (response->mids) {
         for (mfxU32 i = 0; i < response->NumFrameActual; i++) {
@@ -395,22 +350,3 @@ mfxStatus _simple_free(mfxFrameAllocResponse* response)
     return MFX_ERR_NONE;
 }
 
-mfxStatus simple_free(mfxHDL pthis, mfxFrameAllocResponse* response)
-{
-    if (!response) return MFX_ERR_NULL_PTR;
-
-    if (allocResponses.find(response->mids) == allocResponses.end()) {
-        // Decode free response handling
-        if (--allocDecodeRefCount[pthis] == 0) {
-            _simple_free(response);
-            allocDecodeResponses.erase(pthis);
-            allocDecodeRefCount.erase(pthis);
-        }
-    } else {
-        // Encode and VPP free response handling
-        allocResponses.erase(response->mids);
-        _simple_free(response);
-    }
-
-    return MFX_ERR_NONE;
-}
