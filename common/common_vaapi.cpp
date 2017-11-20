@@ -171,7 +171,11 @@ struct vaapiMemId {
 
 
 //===================================================================
-
+mfxStatus do_alloc(mfxFrameAllocRequest* request, mfxFrameAllocResponse* response);
+mfxStatus do_free(mfxFrameAllocResponse* response);
+mfxStatus do_lock(mfxMemId mid, mfxFrameData* ptr);
+mfxStatus do_unlock(mfxMemId mid, mfxFrameData* ptr);
+mfxStatus do_gethdl(mfxMemId mid, mfxHDL* handle);
 
 //
 // Media SDK memory allocator entrypoints....
@@ -287,7 +291,8 @@ mfxStatus do_alloc(mfxFrameAllocRequest* request, mfxFrameAllocResponse* respons
     }
     return mfx_res;
 }
-void do_free(mfxFrameAllocResponse* response)
+
+mfxStatus do_free(mfxFrameAllocResponse* response)
 {
     vaapiMemId* vaapi_mids = NULL;
     VASurfaceID* surfaces = NULL;
@@ -314,6 +319,8 @@ void do_free(mfxFrameAllocResponse* response)
 		free(surfaces);
 	}
 	response->NumFrameActual = 0;
+
+	return MFX_ERR_NONE;
 }
 
 mfxStatus do_lock(mfxMemId mid, mfxFrameData* ptr)
@@ -557,72 +564,3 @@ mfxStatus simple_free(mfxHDL pthis, mfxFrameAllocResponse* response)
     return MFX_ERR_NONE;
 }
 
-#if 1
-mfxStatus videoframe_allocator::simple_alloc(mfxFrameAllocRequest* request, mfxFrameAllocResponse* response)
-{
-    mfxStatus sts = MFX_ERR_NONE;
-
-    if (0 == request || 0 == response || 0 == request->NumFrameSuggested)
-        return MFX_ERR_MEMORY_ALLOC;
-
-    if ((request->Type & (MFX_MEMTYPE_VIDEO_MEMORY_DECODER_TARGET |
-                          MFX_MEMTYPE_VIDEO_MEMORY_PROCESSOR_TARGET)) == 0)
-        return MFX_ERR_UNSUPPORTED;
-
-    //there may be some redundant request!
-    bool b_possible_redundant_req =
-    		MFX_MEMTYPE_EXTERNAL_FRAME & request->Type
-            && MFX_MEMTYPE_FROM_DECODE & request->Type;
-
-    if(b_possible_redundant_req && m_mfxResponse.NumFrameActual > 0)
-    {
-        // Memory for this request was already allocated during manual allocation stage. Return saved response
-        //   When decode acceleration device (VAAPI) is created it requires a list of VAAPI surfaces to be passed.
-        //   Therefore Media SDK will ask for the surface info/mids again at Init() stage, thus requiring us to return the saved response
-        //   (No such restriction applies to Encode or VPP)
-        if (request->AllocId == m_mfxResponse.AllocId
-        	&& request->NumFrameSuggested <= m_mfxResponse.NumFrameActual)
-        {
-            *response = m_mfxResponse;
-            m_refCount++;
-            return MFX_ERR_NONE;
-        }
-    }
-
-	sts = do_alloc(request, response);
-
-	if (MFX_ERR_NONE == sts) {
-		if (b_possible_redundant_req) {
-			// Decode alloc response handling
-			m_mfxResponse = *response;
-			m_refCount++;
-			//allocDecodeRefCount[pthis]++;
-		} else {
-			// Encode and VPP alloc response handling
-			//allocResponses[response->mids] = pthis;
-			m_mfxResponse = *response;
-			m_refCount++;
-		}
-	}
-
-    return sts;
-
-    return ::simple_alloc(this,request, response);
-}
-mfxStatus videoframe_allocator::simple_free(mfxFrameAllocResponse* response)
-{
-	return ::simple_free(this,response);
-}
-mfxStatus videoframe_allocator::simple_lock(mfxMemId mid, mfxFrameData* ptr)
-{
-	return ::do_lock(mid,ptr);
-}
-mfxStatus videoframe_allocator::simple_unlock(mfxMemId mid, mfxFrameData* ptr)
-{
-	return ::do_unlock(mid,ptr);
-}
-mfxStatus videoframe_allocator::simple_gethdl(mfxMemId mid, mfxHDL* handle)
-{
-	return ::do_gethdl(mid, handle);
-}
-#endif

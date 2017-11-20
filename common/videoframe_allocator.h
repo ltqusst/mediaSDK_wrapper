@@ -3,6 +3,7 @@
 
 #include "mfxvideo.h"
 #include <map>
+#include <set>
 #include <string.h>
 
 #include "common_utils.h"
@@ -10,9 +11,8 @@
 // Intel Media SDK memory allocator entrypoints....
 // Implementation of this functions is OS/Memory type specific.
 
-#define PDEBUG(s, ...) printf(s, __VA_ARGS__)
-
-//#define PDEBUG(s, ...)
+//#define PDEBUG(s, ...) printf(s, __VA_ARGS__)
+#define PDEBUG(s, ...)
 
 class videoframe_allocator: public mfxFrameAllocator
 {
@@ -32,9 +32,11 @@ public:
 		m_alloc_count = 0;
 		m_free_count = 0;
 	}
+
     mfxFrameAllocResponse 			m_mfxResponse;
     int 							m_refCount;
-	std::map<mfxMemId*, mfxHDL>     m_allocResponses;
+
+	std::set<mfxMemId*>     		m_SetMemId;
 
 	int 							m_alloc_count;
 	int 							m_free_count;
@@ -49,6 +51,8 @@ public:
 				pthis, that->m_alloc_count, request->AllocId,
 				request->Type, request->Info.Width, request->Info.Height, request->NumFrameMin, request->NumFrameSuggested,
 				response->mids, response->NumFrameActual, sts);
+		if(sts != MFX_ERR_NONE)
+			fprintf(stderr, ANSI_BOLD ANSI_COLOR_RED "%s:%d simple_alloc() failed %d!\n" ANSI_COLOR_RESET,__FILE__,__LINE__, sts);
 		return sts;
 	}
 	static mfxStatus _lock(mfxHDL pthis, mfxMemId mid, mfxFrameData* ptr){
@@ -75,6 +79,10 @@ public:
 		PDEBUG( ANSI_COLOR_YELLOW "_free(%p)@%d mid:%p cnt:%u sts:%d\n" ANSI_COLOR_RESET,
 				pthis, that->m_free_count,
 				response->mids, response->NumFrameActual, sts);
+
+		if(sts != MFX_ERR_NONE)
+			fprintf(stderr, ANSI_BOLD ANSI_COLOR_RED "%s:%d simple_free() failed %d!\n" ANSI_COLOR_RESET,__FILE__,__LINE__, sts);
+
 		return sts;
 	}
 
@@ -85,7 +93,13 @@ public:
 	virtual mfxStatus simple_free(mfxFrameAllocResponse* response);
 };
 
+// Win32/Linux platform dependent implementations are required for this allocator to work
 
+mfxStatus do_alloc(mfxFrameAllocRequest* request, mfxFrameAllocResponse* response);
+mfxStatus do_free(mfxFrameAllocResponse* response);
+mfxStatus do_lock(mfxMemId mid, mfxFrameData* ptr);
+mfxStatus do_unlock(mfxMemId mid, mfxFrameData* ptr);
+mfxStatus do_gethdl(mfxMemId mid, mfxHDL* handle);
 
 #endif
 

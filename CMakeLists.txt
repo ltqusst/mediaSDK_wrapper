@@ -14,6 +14,7 @@ if ( UNIX )
 			common/common_vaapi.cpp
 			common/surface_pool.cpp
 			common/media_pipeline.cpp
+			common/videoframe_allocator.cpp
 			)
 			
 	set(LIB mfx va va-drm pthread rt dl OpenCL)
@@ -37,7 +38,10 @@ elseif ( WIN32 )
 	set(SRC common/cmd_options.cpp
 			common/common_directx11.cpp
 			common/common_utils.cpp
-			common/common_utils_windows.cpp)
+			common/common_utils_windows.cpp
+			common/surface_pool.cpp
+			common/media_pipeline.cpp
+			common/videoframe_allocator.cpp)
 			
 	set(LIB libmfx_vs2015_d.lib DXGI.lib D3D11.lib)
 	set(INCDIR common $ENV{INTELMEDIASDKROOT}include )
