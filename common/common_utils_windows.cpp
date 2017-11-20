@@ -22,10 +22,10 @@ Copyright(c) 2005-2014 Intel Corporation. All Rights Reserved.
  * Windows implementation of OS-specific utility functions
  */
 
-mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, MFXVideoSession* pSession, mfxFrameAllocator* pmfxAllocator, bool bCreateSharedHandles)
+mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, MFXVideoSession* pSession, mfxFrameAllocator* pmfxAllocator)
 {
     mfxStatus sts = MFX_ERR_NONE;
-
+	bool bCreateSharedHandles = true;
 #ifdef DX11_D3D
     impl |= MFX_IMPL_VIA_D3D11;
 #endif
@@ -45,13 +45,6 @@ mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, MFXVideoSession* pSession, mf
         // Provide device manager to Media SDK
         sts = pSession->SetHandle(DEVICE_MGR_TYPE, deviceHandle);
         MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
-
-        pmfxAllocator->pthis  = *pSession; // We use Media SDK session ID as the allocation identifier
-        pmfxAllocator->Alloc  = simple_alloc;
-        pmfxAllocator->Free   = simple_free;
-        pmfxAllocator->Lock   = simple_lock;
-        pmfxAllocator->Unlock = simple_unlock;
-        pmfxAllocator->GetHDL = simple_gethdl;
 
         // Since we are using video memory we must provide Media SDK with an external allocator
         sts = pSession->SetFrameAllocator(pmfxAllocator);

@@ -37,7 +37,7 @@ static void usage(CmdOptionsCtx* ctx)
 //======================================================================================
 
 //======================================================================================
-
+#if 0
 //===========================================================
 #include <CL/cl.h>
 #include <va/va.h>
@@ -228,7 +228,7 @@ private:
 
 };
 
-
+#endif
 
 void decode(const char * bsfile, mfxIMPL impl, bool drop_on_overflow, const char * ofile)
 {
@@ -261,7 +261,7 @@ void decode(const char * bsfile, mfxIMPL impl, bool drop_on_overflow, const char
 			MSDK_BREAK_ON_ERROR(sts);
 
 			MSDK_BREAK_ON_ERROR(out.second->unlock());
-			printf("%sFrame number (DEC, VPP): %d, %d \n"ANSI_COLOR_RESET,
+			printf("%sFrame number (DEC, VPP): %d, %d \n" ANSI_COLOR_RESET,
 				out.first->m_FrameNumber == out.second->m_FrameNumber?ANSI_COLOR_RESET:ANSI_COLOR_RED,
 				out.first->m_FrameNumber,
 				out.second->m_FrameNumber);
@@ -311,7 +311,7 @@ int main(int argc, char** argv)
 
     mfxU32 nFrame = 0;
 
-    ContextOpenCL &o = ContextOpenCL::instance();
+    //ContextOpenCL &o = ContextOpenCL::instance();
 
     bool drop_on_overflow = false;
 

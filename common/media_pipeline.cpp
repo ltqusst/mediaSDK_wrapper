@@ -232,8 +232,12 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
     			// call MFXVideoDECODE_GetVideoParam() realloc surface pool
     			// call MFXVideoDECODE_Close() to restart
     			break;
+			case MFX_ERR_NONE:
+				break;
     		default:
     			//other error, we cannot handle
+				fprintf(stderr, ANSI_BOLD ANSI_COLOR_RED "DecodeFrameAsync() return err %d\n" ANSI_COLOR_RESET, sts);
+				assert(0);
     			break;
     		}
 

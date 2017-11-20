@@ -37,6 +37,7 @@ mfxStatus videoframe_allocator::simple_alloc(mfxFrameAllocRequest* request, mfxF
     }
 
 	sts = ::do_alloc(request, response);
+	response->AllocId = request->AllocId;
 
 	if (MFX_ERR_NONE == sts) {
 		if (b_possible_redundant_req) {

@@ -43,9 +43,10 @@ elseif ( WIN32 )
 			common/media_pipeline.cpp
 			common/videoframe_allocator.cpp)
 			
-	set(LIB libmfx_vs2015_d.lib DXGI.lib D3D11.lib)
+	set(LIB libmfx_vs2017.lib DXGI.lib D3D11.lib)
 	set(INCDIR common $ENV{INTELMEDIASDKROOT}include )
 	set(LIBDIR $ENV{INTELMEDIASDKROOT}lib\\x64 )
+	add_definitions(-DDX11_D3D=1)
 else ()
     message( FATAL_ERROR "Only UNIX & WIN32 are supported" )
 endif ()

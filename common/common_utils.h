@@ -26,6 +26,16 @@ Copyright(c) 2005-2014 Intel Corporation. All Rights Reserved.
 #include "bits/linux_defs.h"
 #endif
 
+#ifdef WIN32
+#define ANSI_BOLD 		   ""
+#define ANSI_COLOR_RED     ""
+#define ANSI_COLOR_GREEN   ""
+#define ANSI_COLOR_YELLOW  ""
+#define ANSI_COLOR_BLUE    ""
+#define ANSI_COLOR_MAGENTA ""
+#define ANSI_COLOR_CYAN    ""
+#define ANSI_COLOR_RESET   ""
+#else
 #define ANSI_BOLD 			"\033[1m"
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"
@@ -34,7 +44,7 @@ Copyright(c) 2005-2014 Intel Corporation. All Rights Reserved.
 #define ANSI_COLOR_MAGENTA "\x1b[35m"
 #define ANSI_COLOR_CYAN    "\x1b[36m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
-
+#endif
 
 // =================================================================
 // Helper macro definitions...

@@ -17,10 +17,6 @@ CComPtr<ID3D11DeviceContext>            g_pD3D11Ctx;
 CComPtr<IDXGIFactory2>                  g_pDXGIFactory;
 IDXGIAdapter*                           g_pAdapter;
 
-std::map<mfxMemId*, mfxHDL>             allocResponses;
-std::map<mfxHDL, mfxFrameAllocResponse> allocDecodeResponses;
-std::map<mfxHDL, int>                   allocDecodeRefCount;
-
 typedef struct {
     mfxMemId    memId;
     mfxMemId    memIdStage;
@@ -147,7 +143,7 @@ void ClearRGBSurfaceD3D(mfxMemId memId)
 //
 // Intel Media SDK memory allocator entrypoints....
 //
-mfxStatus _simple_alloc(mfxFrameAllocRequest* request, mfxFrameAllocResponse* response)
+mfxStatus do_alloc(mfxFrameAllocRequest* request, mfxFrameAllocResponse* response)
 {
     HRESULT hRes;
 
@@ -271,45 +267,9 @@ mfxStatus _simple_alloc(mfxFrameAllocRequest* request, mfxFrameAllocResponse* re
     return MFX_ERR_NONE;
 }
 
-mfxStatus simple_alloc(mfxHDL pthis, mfxFrameAllocRequest* request, mfxFrameAllocResponse* response)
+
+mfxStatus do_lock(mfxMemId mid, mfxFrameData* ptr)
 {
-    mfxStatus sts = MFX_ERR_NONE;
-
-    if (request->Type & MFX_MEMTYPE_SYSTEM_MEMORY)
-        return MFX_ERR_UNSUPPORTED;
-
-    if (allocDecodeResponses.find(pthis) != allocDecodeResponses.end() &&
-        MFX_MEMTYPE_EXTERNAL_FRAME & request->Type &&
-        MFX_MEMTYPE_FROM_DECODE & request->Type) {
-        // Memory for this request was already allocated during manual allocation stage. Return saved response
-        //   When decode acceleration device (DXVA) is created it requires a list of d3d surfaces to be passed.
-        //   Therefore Media SDK will ask for the surface info/mids again at Init() stage, thus requiring us to return the saved response
-        //   (No such restriction applies to Encode or VPP)
-        *response = allocDecodeResponses[pthis];
-        allocDecodeRefCount[pthis]++;
-    } else {
-        sts = _simple_alloc(request, response);
-
-        if (MFX_ERR_NONE == sts) {
-            if ( MFX_MEMTYPE_EXTERNAL_FRAME & request->Type &&
-                 MFX_MEMTYPE_FROM_DECODE & request->Type) {
-                // Decode alloc response handling
-                allocDecodeResponses[pthis] = *response;
-                allocDecodeRefCount[pthis]++;
-            } else {
-                // Encode and VPP alloc response handling
-                allocResponses[response->mids] = pthis;
-            }
-        }
-    }
-
-    return sts;
-}
-
-mfxStatus simple_lock(mfxHDL pthis, mfxMemId mid, mfxFrameData* ptr)
-{
-    pthis; // To suppress warning for this unused parameter
-
     HRESULT hRes = S_OK;
 
     D3D11_TEXTURE2D_DESC        desc = {0};
@@ -375,10 +335,8 @@ mfxStatus simple_lock(mfxHDL pthis, mfxMemId mid, mfxFrameData* ptr)
     return MFX_ERR_NONE;
 }
 
-mfxStatus simple_unlock(mfxHDL pthis, mfxMemId mid, mfxFrameData* ptr)
+mfxStatus do_unlock(mfxMemId mid, mfxFrameData* ptr)
 {
-    pthis; // To suppress warning for this unused parameter
-
     CustomMemId*        memId       = (CustomMemId*)mid;
     ID3D11Texture2D*    pSurface    = (ID3D11Texture2D*)memId->memId;
     ID3D11Texture2D*    pStage      = (ID3D11Texture2D*)memId->memIdStage;
@@ -401,10 +359,8 @@ mfxStatus simple_unlock(mfxHDL pthis, mfxMemId mid, mfxFrameData* ptr)
     return MFX_ERR_NONE;
 }
 
-mfxStatus simple_gethdl(mfxHDL pthis, mfxMemId mid, mfxHDL* handle)
+mfxStatus do_gethdl( mfxMemId mid, mfxHDL* handle)
 {
-    pthis; // To suppress warning for this unused parameter
-
     if (NULL == handle)
         return MFX_ERR_INVALID_HANDLE;
 
@@ -418,7 +374,7 @@ mfxStatus simple_gethdl(mfxHDL pthis, mfxMemId mid, mfxHDL* handle)
 }
 
 
-mfxStatus _simple_free(mfxFrameAllocResponse* response)
+mfxStatus do_free(mfxFrameAllocResponse* response)
 {
     if (response->mids) {
         for (mfxU32 i = 0; i < response->NumFrameActual; i++) {
@@ -442,23 +398,3 @@ mfxStatus _simple_free(mfxFrameAllocResponse* response)
     return MFX_ERR_NONE;
 }
 
-mfxStatus simple_free(mfxHDL pthis, mfxFrameAllocResponse* response)
-{
-    if (NULL == response)
-        return MFX_ERR_NULL_PTR;
-
-    if (allocResponses.find(response->mids) == allocResponses.end()) {
-        // Decode free response handling
-        if (--allocDecodeRefCount[pthis] == 0) {
-            _simple_free(response);
-            allocDecodeResponses.erase(pthis);
-            allocDecodeRefCount.erase(pthis);
-        }
-    } else {
-        // Encode and VPP free response handling
-        allocResponses.erase(response->mids);
-        _simple_free(response);
-    }
-
-    return MFX_ERR_NONE;
-}
