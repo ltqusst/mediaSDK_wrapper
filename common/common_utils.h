@@ -64,16 +64,17 @@ Copyright(c) 2005-2014 Intel Corporation. All Rights Reserved.
 #define WILL_READ  0x1000
 #define WILL_WRITE 0x2000
 
-// =================================================================
-// Intel Media SDK memory allocator entrypoints....
-// Implementation of this functions is OS/Memory type specific.
-mfxStatus simple_alloc(mfxHDL pthis, mfxFrameAllocRequest* request, mfxFrameAllocResponse* response);
-mfxStatus simple_lock(mfxHDL pthis, mfxMemId mid, mfxFrameData* ptr);
-mfxStatus simple_unlock(mfxHDL pthis, mfxMemId mid, mfxFrameData* ptr);
-mfxStatus simple_gethdl(mfxHDL pthis, mfxMemId mid, mfxHDL* handle);
-mfxStatus simple_free(mfxHDL pthis, mfxFrameAllocResponse* response);
-
-
+//platform dependent device handle
+// (VA on linux / D3D on Windows)
+class DeviceHandle
+{
+public:
+	~DeviceHandle();
+	static mfxHDL get(mfxSession session);
+private:
+	DeviceHandle():m_Handle(NULL){};
+	mfxHDL m_Handle;
+};
 
 // =================================================================
 // Utility functions, not directly tied to Media SDK functionality

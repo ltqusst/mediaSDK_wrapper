@@ -55,6 +55,8 @@ struct CmdOptionsValues {
     mfxU16 FrameRateN; // OPTION_FRAMERATE
     mfxU16 FrameRateD;
 
+	mfxU16 Channels;
+
     bool MeasureLatency; // OPTION_MEASURE_LATENCY
 };
 

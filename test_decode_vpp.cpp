@@ -31,7 +31,7 @@ static void usage(CmdOptionsCtx* ctx)
 #include <functional>
 #include <deque>
 #include <condition_variable>
-
+#include <chrono>
 
 
 //======================================================================================
@@ -238,14 +238,12 @@ void decode(const char * bsfile, mfxIMPL impl, bool drop_on_overflow, const char
     	fSink = fopen(ofile,"wb");
     }
 
-    int nFrame;
-
-    mfxTime tStart, tEnd;
-    mfxGetTime(&tStart);
+    auto t_start = std::chrono::high_resolution_clock::now();
 
     m.start(bsfile, impl, drop_on_overflow);
 
-    for(nFrame=0;;nFrame++){
+	int nFrame;
+    for(nFrame=0; nFrame < 1000;nFrame++){
     	MediaDecoder::Output out;
     	if(!m.get(out)) break;
 
@@ -272,10 +270,11 @@ void decode(const char * bsfile, mfxIMPL impl, bool drop_on_overflow, const char
 
     m.stop();
 
-    mfxGetTime(&tEnd);
-    double elapsed = TimeDiffMsec(tEnd, tStart) / 1000;
-    double fps = ((double)nFrame / elapsed);
-    printf("\nTotal Frames: %d, Execution time: %3.2f s (%3.2f fps)\n", nFrame, elapsed, fps);
+	auto t_end = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> diff = t_end - t_start;
+
+    double fps = ((double)nFrame / diff.count());
+    printf("\nTotal Frames: %d, Execution time: %3.2f s (%3.2f fps)\n", nFrame, diff.count(), fps);
 
     if (fSink) fclose(fSink);
 }
@@ -315,17 +314,18 @@ int main(int argc, char** argv)
 
     bool drop_on_overflow = false;
 
-    std::thread * pth[1];
+	std::thread * pth[32] = { 0 };
 
 #define cntof(x) sizeof(x)/sizeof(x[0])
-    for(int t=0;t<cntof(pth);t++)
+    for(int t=0;t<options.values.Channels;t++)
     {
     	pth[t] = new std::thread(decode, options.values.SourceName, options.values.impl, drop_on_overflow,
-
-    			t==cntof(pth)-1?(bEnableOutput?options.values.SinkName:NULL):NULL);
+			t== options.values.Channels-1?(bEnableOutput?options.values.SinkName:NULL):NULL);
     }
+
     for(int t=0;t<cntof(pth);t++)
     {
-    	pth[t]->join();
+		if(pth[t])
+    		pth[t]->join();
     }
 }

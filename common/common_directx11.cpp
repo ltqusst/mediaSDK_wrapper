@@ -10,6 +10,7 @@ Copyright(c) 2005-2014 Intel Corporation. All Rights Reserved.
 
 #include "common_directx11.h"
 #include "videoframe_allocator.h"
+#include "common_utils.h"
 
 CComPtr<ID3D11Device>                   g_pD3D11Device;
 CComPtr<ID3D11DeviceContext>            g_pD3D11Ctx;
@@ -64,11 +65,8 @@ IDXGIAdapter* GetIntelDeviceAdapterHandle(mfxSession session)
 }
 
 // Create HW device context
-mfxStatus CreateHWDevice(mfxSession session, mfxHDL* deviceHandle, HWND hWnd, bool bCreateSharedHandles)
+mfxStatus CreateHWDevice(mfxSession session, mfxHDL* deviceHandle)
 {
-    //Note: not using bCreateSharedHandles for DX11 -- for API consistency only
-    hWnd; // Window handle not required by DX11 since we do not showcase rendering.
-
     HRESULT hres = S_OK;
 
     static D3D_FEATURE_LEVEL FeatureLevels[] = {
@@ -78,7 +76,7 @@ mfxStatus CreateHWDevice(mfxSession session, mfxHDL* deviceHandle, HWND hWnd, bo
         D3D_FEATURE_LEVEL_10_0
     };
     D3D_FEATURE_LEVEL pFeatureLevelsOut;
-
+	
     g_pAdapter = GetIntelDeviceAdapterHandle(session);
     if (NULL == g_pAdapter)
         return MFX_ERR_DEVICE_FAILED;
@@ -138,6 +136,22 @@ void ClearRGBSurfaceD3D(mfxMemId memId)
 {
     // TBD
 }
+
+#include <mutex>
+mfxHDL DeviceHandle::get(mfxSession session)
+{
+	static std::once_flag oc;
+	static DeviceHandle theOne;
+	std::call_once(oc, [&](){
+		CreateHWDevice(session, &theOne.m_Handle);
+	});
+	return theOne.m_Handle;
+}
+DeviceHandle::~DeviceHandle()
+{
+	CleanupHWDevice();
+}
+
 
 //
 // Intel Media SDK memory allocator entrypoints....

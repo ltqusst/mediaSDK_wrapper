@@ -23,14 +23,7 @@ Copyright(c) 2005-2014 Intel Corporation. All Rights Reserved.
 #include "va/va.h"
 #include "va/va_drm.h"
 
-class VAHandle
-{
-public:
-	~VAHandle();
-	static mfxHDL get(void);
-private:
-	mfxHDL displayHandle;
-};
+#define DEVICE_MGR_TYPE  static_cast<mfxHandleType>(MFX_HANDLE_VA_DISPLAY)
 
 // =================================================================
 // VAAPI functionality required to manage VA surfaces

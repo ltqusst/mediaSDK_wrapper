@@ -19,7 +19,8 @@ MediaDecoder::MediaDecoder(int output_queue_size):
 		spDEC(m_mfxAllocator),
 		spVPP(m_mfxAllocator),
 		m_outputs(output_queue_size),
-		m_debug(Debug::no){
+		m_debug(Debug::no)
+{
 	char * pdebug = getenv("MD_DEBUG");
 	if(pdebug){
 		if(strcmp(pdebug,"yes") == 0) m_debug = Debug::yes;
@@ -27,7 +28,9 @@ MediaDecoder::MediaDecoder(int output_queue_size):
 		if(strcmp(pdebug,"out") == 0) m_debug = Debug::out;
 	}
 }
-MediaDecoder::~MediaDecoder(){
+
+MediaDecoder::~MediaDecoder()
+{
 	stop();
 }
 
@@ -214,6 +217,7 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
     		{
     		case MFX_WRN_DEVICE_BUSY:
     			MSDK_SLEEP(1); //1ms delay
+				printf(" >>>>>>>>>>>>>>>>>>>>>> DEC  MFX_WRN_DEVICE_BUSY  <<<<<<<<<<<<<<<<<<<<<<< \n");
     			break;
     		case MFX_ERR_MORE_DATA:
 				if(Bs.IsEnd()) {
@@ -237,6 +241,7 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
     		default:
     			//other error, we cannot handle
 				fprintf(stderr, ANSI_BOLD ANSI_COLOR_RED "DecodeFrameAsync() return err %d\n" ANSI_COLOR_RESET, sts);
+				exit(1);
 				assert(0);
     			break;
     		}
@@ -298,8 +303,10 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
                 // Process a frame asychronously (returns immediately)
                 sts = mfxVPP.RunFrameVPPAsync(phddlSurfaceDEC, pmfxOutSurfaceVPP, NULL, &syncpV);
 
-                if (MFX_WRN_DEVICE_BUSY == sts)
-                	MSDK_SLEEP(1);  // wait if device is busy
+				if (MFX_WRN_DEVICE_BUSY == sts) {
+					MSDK_SLEEP(1);  // wait if device is busy
+					printf(" >>>>>>>>>>>>>>>>>>>>>> VPP MFX_WRN_DEVICE_BUSY  <<<<<<<<<<<<<<<<<<<<<<< \n");
+				}
                 //if(MFX_ERR_NONE != sts) printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> %d, %p\n", sts, syncpV);
 
             }while(MFX_ERR_NONE < sts && !syncpV);

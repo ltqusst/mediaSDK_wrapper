@@ -16,12 +16,6 @@
 //#define PDEBUG(s, ...) printf(s, __VA_ARGS__)
 #define PDEBUG(s, ...)
 
-// Win32/Linux platform dependent implementations are required for this allocator to work
-mfxStatus do_alloc(mfxFrameAllocRequest* request, mfxFrameAllocResponse* response);
-mfxStatus do_free(mfxFrameAllocResponse* response);
-mfxStatus do_lock(mfxMemId mid, mfxFrameData* ptr);
-mfxStatus do_unlock(mfxMemId mid, mfxFrameData* ptr);
-mfxStatus do_gethdl(mfxMemId mid, mfxHDL* handle);
 
 class mem_allocator
 {
@@ -45,6 +39,7 @@ public:
 	virtual mfxStatus do_gethdl(mfxMemId mid, mfxHDL* handle);
 	virtual mfxStatus do_free(mfxFrameAllocResponse* response);
 };
+// Win32/Linux platform dependent implementations are required for this allocator to work
 class mem_allocator_video:public mem_allocator
 {
 public:

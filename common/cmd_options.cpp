@@ -64,6 +64,7 @@ void ParseOptions(int argc, char** argv, CmdOptions* cmd_options)
     if (!cmd_options->ctx.program) {
         cmd_options->ctx.program = argv[0];
     }
+	cmd_options->values.Channels = 1;
     for (i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "--help")) {
             PrintHelp(cmd_options);
@@ -72,6 +73,17 @@ void ParseOptions(int argc, char** argv, CmdOptions* cmd_options)
             printf("%s\n", version);
             exit(0);
         } else if ((cmd_options->ctx.options & OPTION_IMPL) && !strcmp(argv[i], "-sw")) {
+            cmd_options->values.impl = MFX_IMPL_SOFTWARE;
+		} else if (!strcmp(argv[i], "-ch")) {
+			if (++i >= argc) {
+				printf("error: no argument for -ch option given\n");
+				exit(-1);
+			}
+			if ((1 != sscanf(argv[i], "%d", &cmd_options->values.Channels)) || (cmd_options->values.Channels <= 0) || (cmd_options->values.Channels > 16)) {
+				printf("error: incorrect argument for -ch option given\n");
+				exit(-1);
+			}
+		} else if ((cmd_options->ctx.options & OPTION_IMPL) && !strcmp(argv[i], "-sw")) {
             cmd_options->values.impl = MFX_IMPL_SOFTWARE;
         } else if ((cmd_options->ctx.options & OPTION_IMPL) && !strcmp(argv[i], "-hw")) {
             cmd_options->values.impl = MFX_IMPL_HARDWARE;

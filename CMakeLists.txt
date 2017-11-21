@@ -8,10 +8,9 @@ if ( UNIX )
 	
 	set (CMAKE_CXX_STANDARD 11)
 	
-	set(SRC common/cmd_options.cpp
+	set(SRC common/common_vaapi.cpp
+			common/cmd_options.cpp
 			common/common_utils.cpp
-			common/common_utils_linux.cpp
-			common/common_vaapi.cpp
 			common/surface_pool.cpp
 			common/media_pipeline.cpp
 			common/videoframe_allocator.cpp
@@ -35,15 +34,14 @@ if ( UNIX )
 	
 elseif ( WIN32 )
 	MESSAGE(STATUS "current platform: Windows")  
-	set(SRC common/cmd_options.cpp
-			common/common_directx11.cpp
+	set(SRC common/common_directx11.cpp
+			common/cmd_options.cpp
 			common/common_utils.cpp
-			common/common_utils_windows.cpp
 			common/surface_pool.cpp
 			common/media_pipeline.cpp
 			common/videoframe_allocator.cpp)
 			
-	set(LIB libmfx_vs2017.lib DXGI.lib D3D11.lib)
+	set(LIB libmfx_vs2017.lib DXGI.lib D3D11.lib dxva2.lib)
 	set(INCDIR common $ENV{INTELMEDIASDKROOT}include )
 	set(LIBDIR $ENV{INTELMEDIASDKROOT}lib\\x64 )
 	add_definitions(-DDX11_D3D=1)

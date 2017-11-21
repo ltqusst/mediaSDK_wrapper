@@ -38,9 +38,10 @@ mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, MFXVideoSession* pSession, mf
     // If mfxFrameAllocator is provided it means we need to setup DirectX device and memory allocator
     if (pmfxAllocator) {
         // Create DirectX device context
-        mfxHDL deviceHandle;
-        sts = CreateHWDevice(*pSession, &deviceHandle, NULL, bCreateSharedHandles);
-        MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+        mfxHDL deviceHandle = DeviceHandle::get(*pSession);
+		
+        //sts = CreateHWDevice(*pSession, &deviceHandle, NULL, bCreateSharedHandles);
+        //MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
 
         // Provide device manager to Media SDK
         sts = pSession->SetHandle(DEVICE_MGR_TYPE, deviceHandle);
@@ -57,24 +58,6 @@ mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, MFXVideoSession* pSession, mf
 
 void Release()
 {
-#if defined(DX9_D3D) || defined(DX11_D3D)
-    CleanupHWDevice();
-#endif
-}
-
-void mfxGetTime(mfxTime* timestamp)
-{
-    QueryPerformanceCounter(timestamp);
-}
-
-double TimeDiffMsec(mfxTime tfinish, mfxTime tstart)
-{
-    static LARGE_INTEGER tFreq = { 0 };
-
-    if (!tFreq.QuadPart) QueryPerformanceFrequency(&tFreq);
-
-    double freq = (double)tFreq.QuadPart;
-    return 1000.0 * ((double)tfinish.QuadPart - (double)tstart.QuadPart) / freq;
 }
 
 void ClearYUVSurfaceVMem(mfxMemId memId)

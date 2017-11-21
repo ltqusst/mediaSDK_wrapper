@@ -51,16 +51,16 @@ mfxStatus va_to_mfx_status(VAStatus va_res)
 
 
 #include <mutex>
-mfxHDL VAHandle::get(void)
+mfxHDL DeviceHandle::get(mfxSession session)
 {
 	static std::once_flag oc;
-	static VAHandle theOne;
+	static DeviceHandle theOne;
 	std::call_once(oc, [](){
-		CreateVAEnvDRM(&theOne.displayHandle);
+		CreateVAEnvDRM(&theOne.m_Handle);
 	});
-	return theOne.displayHandle;
+	return theOne.m_Handle;
 }
-VAHandle::~VAHandle()
+DeviceHandle::~DeviceHandle()
 {
 	CleanupVAEnvDRM();
 }

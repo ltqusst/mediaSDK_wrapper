@@ -64,6 +64,7 @@ mfxStatus mem_allocator_system::do_free(mfxFrameAllocResponse* response)
 		delete response->mids[i];
 
 	free(response->mids);
+	return MFX_ERR_NONE;
 }
 mfxStatus mem_allocator_system::do_lock(mfxMemId mid, mfxFrameData* ptr)
 {

@@ -7,8 +7,77 @@ or disclosed except in accordance with the terms of that agreement.
 Copyright(c) 2005-2014 Intel Corporation. All Rights Reserved.
 
 *****************************************************************************/
-
+#include "mfxvideo.h"
 #include "common_utils.h"
+
+// ATTENTION: If D3D surfaces are used, DX9_D3D or DX11_D3D must be set in project settings or hardcoded here
+#ifdef WIN32
+	#ifdef DX9_D3D
+	#include "common_directx.h"
+	#elif DX11_D3D
+	#include "common_directx11.h"
+	#endif
+#else
+	#if (MFX_VERSION_MAJOR == 1) && (MFX_VERSION_MINOR < 8)
+	#include "mfxlinux.h"
+	#endif
+	#include "common_vaapi.h"
+#endif
+
+/* =======================================================
+* Windows implementation of OS-specific utility functions
+*/
+
+mfxStatus Initialize(mfxIMPL impl, mfxVersion ver, MFXVideoSession* pSession, mfxFrameAllocator* pmfxAllocator)
+{
+	mfxStatus sts = MFX_ERR_NONE;
+	bool bCreateSharedHandles = true;
+#ifdef DX11_D3D
+	impl |= MFX_IMPL_VIA_D3D11;
+#endif
+
+	// Initialize Intel Media SDK Session
+	sts = pSession->Init(impl, &ver);
+	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+
+	// Create VA/DirectX device context
+	mfxHDL deviceHandle = DeviceHandle::get(*pSession);
+
+	// Provide device manager to Media SDK
+	sts = pSession->SetHandle(DEVICE_MGR_TYPE, deviceHandle);
+	MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+
+	// If mfxFrameAllocator is provided it means we need to setup DirectX device and memory allocator
+	if (pmfxAllocator) {
+		// Since we are using video memory we must provide Media SDK with an external allocator
+		sts = pSession->SetFrameAllocator(pmfxAllocator);
+		MSDK_CHECK_RESULT(sts, MFX_ERR_NONE, sts);
+	}
+
+	return sts;
+}
+
+void Release()
+{
+}
+
+void ClearYUVSurfaceVMem(mfxMemId memId)
+{
+#if defined(DX9_D3D) || defined(DX11_D3D)
+	ClearYUVSurfaceD3D(memId);
+#else
+	ClearYUVSurfaceVAAPI(memId);
+#endif
+}
+
+void ClearRGBSurfaceVMem(mfxMemId memId)
+{
+#if defined(DX9_D3D) || defined(DX11_D3D)
+	ClearRGBSurfaceD3D(memId);
+#else
+	ClearRGBSurfaceVAAPI(memId);
+#endif
+}
 
 // =================================================================
 // Utility functions, not directly tied to Intel Media SDK functionality
@@ -201,22 +270,6 @@ mfxStatus WriteBitStreamFrame(mfxBitstream* pMfxBitstream, FILE* fSink)
     return MFX_ERR_NONE;
 }
 
-mfxStatus ReadBitStreamData(mfxBitstream* pBS, FILE* fSource)
-{
-    memmove(pBS->Data, pBS->Data + pBS->DataOffset, pBS->DataLength);
-    pBS->DataOffset = 0;
-
-    mfxU32 nBytesRead = (mfxU32) fread(pBS->Data + pBS->DataLength, 1,
-                                       pBS->MaxLength - pBS->DataLength,
-                                       fSource);
-
-    if (0 == nBytesRead)
-        return MFX_ERR_MORE_DATA;
-
-    pBS->DataLength += nBytesRead;
-
-    return MFX_ERR_NONE;
-}
 
 mfxStatus WriteSection(mfxU8* plane, mfxU16 factor, mfxU16 chunksize,
                        mfxFrameInfo* pInfo, mfxFrameData* pData, mfxU32 i,

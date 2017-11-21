@@ -49,31 +49,6 @@ void Release()
 {
 }
 
-void mfxGetTime(mfxTime* timestamp)
-{
-    clock_gettime(CLOCK_REALTIME, timestamp);
-}
-
-double TimeDiffMsec(mfxTime tfinish, mfxTime tstart)
-{
-    double result;
-    long long elapsed_nsec = tfinish.tv_nsec - tstart.tv_nsec;
-    long long elapsed_sec = tfinish.tv_sec - tstart.tv_sec;
-
-    //if (tstart.tv_sec==0) return -1;
-
-    //timespec uses two fields -- check if borrowing necessary
-    if (elapsed_nsec < 0) {
-        elapsed_sec -= 1;
-        elapsed_nsec += 1000000000;
-    }
-    //return total converted to milliseconds
-    result = (double)elapsed_sec *1000.0;
-    result += (double)elapsed_nsec / 1000000;
-
-    return result;
-}
-
 void ClearYUVSurfaceVMem(mfxMemId memId)
 {
     ClearYUVSurfaceVAAPI(memId);

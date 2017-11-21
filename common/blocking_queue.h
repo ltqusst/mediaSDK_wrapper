@@ -16,7 +16,7 @@ template<class T>
 class blocking_queue
 {
 public:
-	blocking_queue(int sz = 0x7FFFFFFF):_size_limit(sz), _closed(false), _max_size(0){}
+	blocking_queue(size_t sz = 0x7FFFFFFF):_size_limit(sz), _closed(false), _max_size(0){}
 
     //with Filter on element(get specific element)
 	// return: true if found
@@ -84,15 +84,15 @@ public:
         std::unique_lock<std::mutex> lk(_m);
         return _q.size();
     }
-    int size_limit(){return _size_limit;}
-    int max_size(void){ return _max_size;}
+	size_t size_limit(){return _size_limit;}
+	size_t max_size(void){ return _max_size;}
 private:
-    const int                       _size_limit;
+    const size_t                    _size_limit;
     std::deque<T>                   _q;
     std::mutex                      _m;
     std::condition_variable        _cv;
     std::condition_variable        _cv_notfull;
-    int                            _max_size;
+    size_t                         _max_size;
     bool                           _closed;
 };
 
