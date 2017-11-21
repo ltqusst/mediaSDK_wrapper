@@ -15,6 +15,9 @@
 #include "media_pipeline.h"
 #include "common_utils.h"
 
+#include <string.h>
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+
 MediaDecoder::MediaDecoder(int output_queue_size):
 		spDEC(m_mfxAllocator),
 		spVPP(m_mfxAllocator),
@@ -26,6 +29,7 @@ MediaDecoder::MediaDecoder(int output_queue_size):
 		if(strcmp(pdebug,"yes") == 0) m_debug = Debug::yes;
 		if(strcmp(pdebug,"dec") == 0) m_debug = Debug::dec;
 		if(strcmp(pdebug,"out") == 0) m_debug = Debug::out;
+		if(strcmp(pdebug,"st") == 0) m_debug = Debug::st;
 	}
 }
 
@@ -36,6 +40,20 @@ MediaDecoder::~MediaDecoder()
 
 void MediaDecoder::start(const char * file_url, mfxIMPL impl, bool drop_on_overflow)
 {
+	static std::atomic<int> g_tty_color(0);
+
+	int color = g_tty_color.fetch_add(1);
+
+	switch(color % 6){
+	case 0: m_tty_color = ANSI_COLOR_BLUE; break;
+	case 1: m_tty_color = ANSI_COLOR_GREEN; break;
+	case 2: m_tty_color = ANSI_COLOR_YELLOW; break;
+	case 3: m_tty_color = ANSI_COLOR_RED; break;
+	case 4: m_tty_color = ANSI_COLOR_MAGENTA; break;
+	case 5: m_tty_color = ANSI_COLOR_CYAN; break;
+	}
+
+
 	if(m_pthread){
 		fprintf(stderr,"Error, thread is already running\n");
 	}else{
@@ -47,6 +65,11 @@ void MediaDecoder::stop(void)
 {
 	if(m_pthread){
 		m_stop = true;
+
+		//drain the queue, or decode thread may blocked
+		Output out_ignore;
+		while(get(out_ignore));
+
 		if(m_pthread->joinable())
 			m_pthread->join();
 		m_pthread = NULL;
@@ -59,7 +82,7 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
 
 #define MD_CHECK_RESULT(sts, value, predix, goto_where)     \
 	if(sts != value) {\
-	printf("(%s:%d) "#predix" return error %d \n", __FILE__, __LINE__, sts);\
+	printf("(%s:%d) "#predix" return error %d \n", __FILENAME__, __LINE__, sts);\
 	return;\
 	}
 
@@ -184,11 +207,31 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
     int dec_id = 0;
     int vpp_id = 0;
     int dropped_cnt = 0;
-    mfxFrameSurface1* pmfxWorkSurfaceDEC = NULL;
 
+
+    unsigned int st_tick = 0;
+    auto t_last = std::chrono::steady_clock::now();
     // Main loop
     while ((bRunningDEC || bRunningVPP) && (!m_stop)) {
 
+    	if(m_debug == Debug::st)
+    	{
+    		auto t_cur = std::chrono::steady_clock::now();
+    		auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t_cur - t_last);
+
+    		if(ms.count() > 1000){
+    			st_tick += ms.count();
+
+    			t_last = t_cur;
+
+    			printf("%s[%d]thread 0x%08X, status: dec %-8d vpp %-8d dropped %-8d fps %d effective fps %d\n" ANSI_COLOR_RESET,
+    					m_tty_color,
+    					st_tick/1000, (std::this_thread::get_id()),
+    					dec_id, vpp_id, dropped_cnt,
+						(vpp_id * 1000/ st_tick), ((vpp_id - dropped_cnt) * 1000/ st_tick)
+						);
+    		}
+    	}
     	// Here we use fully Synced operation instead of ASync to make robust & easy pipeline
     	// (performance penalty is acceptable for multi-channel application)
 
@@ -201,16 +244,19 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
 
 			// Decode a frame asychronously (returns immediately)
 
-    		// Update work surface
-    		if(pmfxWorkSurfaceDEC == NULL) {
-    			pmfxWorkSurfaceDEC = spDEC.getfree();
-    			if(pmfxWorkSurfaceDEC == NULL){
-    				fprintf(stderr, "%s:%d spDEC.getfree() return NULL\n", __FILE__, __LINE__);
-    				goto DECODE_LOOPEND;
-    			}
-    		}
+    		mfxFrameSurface1* pmfxSurfaceWork = NULL;
     		mfxFrameSurface1* pmfxSurfaceOut = NULL;
-			sts = mfxDEC.DecodeFrameAsync(Bs.IsEnd()?NULL:&Bs, pmfxWorkSurfaceDEC, &pmfxSurfaceOut, &syncpD);
+
+    		// Just provide one free work surface each time call DecodeFrameAsync
+    		// it will be locked by DecodeFrameAsync() when necessary
+    		pmfxSurfaceWork = spDEC.getfree();
+
+			if(pmfxSurfaceWork == NULL){
+				fprintf(stderr, "%s:%d spDEC.getfree() return NULL\n", __FILENAME__, __LINE__);
+				goto DECODE_LOOPEND;
+			}
+
+			sts = mfxDEC.DecodeFrameAsync(Bs.IsEnd()?NULL:&Bs, pmfxSurfaceWork, &pmfxSurfaceOut, &syncpD);
 			phddlSurfaceDEC = static_cast<surface1*>(pmfxSurfaceOut);
 
     		switch(sts)
@@ -228,7 +274,7 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
 				Bs.Feed();
     			break;
     		case MFX_ERR_MORE_SURFACE:
-    			pmfxWorkSurfaceDEC = NULL;
+    			//pmfxWorkSurfaceDEC = NULL;
     			break;
     		case MFX_WRN_VIDEO_PARAM_CHANGED:
     			//TODO
@@ -266,23 +312,23 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
     	//MFX_FRAMEORDER_UNKNOWN
 		//MFX_TIMESTAMP_UNKNOWN
 
-
     	//either decoder is done or one frame is ready for further operation
     	//spDEC.debug();
     	//if((dec_id & 0xFFF) == 0)
     	if(m_debug == Debug::yes || m_debug == Debug::dec)
     	{
-			printf("%s:%d, %d,%d, id:dec_%d,vpp_%d, Outsurface:%d, Locked:%d, FrameOrder:0x%X, Timestamp:%llu\n",
-					__FILE__,__LINE__, bRunningDEC, bOutReadyDEC, dec_id, vpp_id,
+			printf("%s:%d, %d,%d, id:dec_%d,vpp_%d, Outsurface:%d, Locked:%d, FrameOrder:0x%X, Timestamp:%llu index:%d\n",
+					__FILENAME__,__LINE__, bRunningDEC, bOutReadyDEC, dec_id, vpp_id,
 					phddlSurfaceDEC?spDEC.surfaceID(phddlSurfaceDEC):-1,
-							phddlSurfaceDEC?phddlSurfaceDEC->Data.Locked:-1,
-									phddlSurfaceDEC?phddlSurfaceDEC->Data.FrameOrder:-1,
-											phddlSurfaceDEC?phddlSurfaceDEC->Data.TimeStamp:-1);
-			//usleep(1000*20);
+					phddlSurfaceDEC?phddlSurfaceDEC->Data.Locked:-1,
+					phddlSurfaceDEC?phddlSurfaceDEC->Data.FrameOrder:-1,
+					phddlSurfaceDEC?phddlSurfaceDEC->Data.TimeStamp:-1,
+					phddlSurfaceDEC?phddlSurfaceDEC->index():-1);
     	}
 
     	if(phddlSurfaceDEC) {
     		phddlSurfaceDEC->m_FrameNumber = dec_id;
+    		//spDEC.debug();
     		spDEC.reserve(phddlSurfaceDEC, drop_on_overflow);
     		dec_id ++;
     	}
@@ -292,7 +338,7 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
     		//
     		mfxFrameSurface1* pmfxOutSurfaceVPP = spVPP.getfree();
 			if(pmfxOutSurfaceVPP == NULL){
-				fprintf(stderr, "%s:%d spVPP.getfree() return NULL\n", __FILE__, __LINE__);
+				fprintf(stderr, "%s:%d spVPP.getfree() return NULL\n", __FILENAME__, __LINE__);
 				goto DECODE_LOOPEND;
 			}
 
@@ -314,7 +360,7 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
             phddlSurfaceVPP = static_cast<surface1 *>(pmfxOutSurfaceVPP);
 
             if(m_debug == Debug::yes)
-            	printf("%s:%d, [%d,%d] vpp_id %d, sts:%d syncpV:%p\n",__FILE__,__LINE__, bRunningDEC, bOutReadyDEC, vpp_id, sts, syncpV);
+            	printf("%s:%d, [%d,%d] vpp_id %d, sts:%d syncpV:%p\n",__FILENAME__,__LINE__, bRunningDEC, bOutReadyDEC, vpp_id, sts, syncpV);
 
             switch(sts)
             {
@@ -328,7 +374,7 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
                 // Not relevant for the illustrated workload! Therefore not handled.
                 // Relevant for cases when VPP produces more frames at output than consumes at input.
             	// E.g. framerate conversion 30 fps -> 60 fps
-				fprintf(stderr,"%s:%d Cannot handle MFX_ERR_MORE_SURFACE\n", __FILE__, __LINE__);
+				fprintf(stderr,"%s:%d Cannot handle MFX_ERR_MORE_SURFACE\n", __FILENAME__, __LINE__);
 				goto DECODE_LOOPEND;
             	break;
             default:
@@ -349,25 +395,27 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
     					spDEC.reserve(phddlSurfaceVPPDEC, drop_on_overflow);
     				else
     				{
-    					fprintf(stderr,"%s:%d Cannot find decoder output by FrameOrder\n", __FILE__, __LINE__);
+    					fprintf(stderr,"%s:%d Cannot find decoder output by FrameOrder\n", __FILENAME__, __LINE__);
     					goto DECODE_LOOPEND;
     				}
 
     				if(m_debug == Debug::out || m_debug == Debug::yes){
-    					printf("%s:%d, [%d,%d], id:%d,%d, DEC%lu(%dx%d %c%c%c%c locked_%d forder_0x%X),VPP%lu(%dx%d %c%c%c%c locked_%d forder_0x%X)\n",
-    							__FILE__,__LINE__, bRunningDEC, bOutReadyDEC, dec_id, vpp_id,
-								static_cast<surface1*>(phddlSurfaceVPPDEC)->m_FrameNumber, phddlSurfaceVPPDEC->Info.Width, phddlSurfaceVPPDEC->Info.Height,
+    					printf("%s:%d, [%d,%d], id:%d,%d, DEC%lu@%d(%dx%d %c%c%c%c locked_%d reserved_%d forder_0x%X),VPP%lu@%d(%dx%d %c%c%c%c locked_%d reserved_%d forder_0x%X)\n",
+    							__FILENAME__,__LINE__, bRunningDEC, bOutReadyDEC, dec_id, vpp_id,
+								phddlSurfaceVPPDEC->m_FrameNumber,phddlSurfaceVPPDEC->index(),
+								phddlSurfaceVPPDEC->Info.Width, phddlSurfaceVPPDEC->Info.Height,
 								((char*)(&phddlSurfaceVPPDEC->Info.FourCC))[0],
 								((char*)(&phddlSurfaceVPPDEC->Info.FourCC))[1],
 								((char*)(&phddlSurfaceVPPDEC->Info.FourCC))[2],
 								((char*)(&phddlSurfaceVPPDEC->Info.FourCC))[3],
-								phddlSurfaceVPPDEC->Data.Locked,	phddlSurfaceVPPDEC->Data.FrameOrder,
-								static_cast<surface1*>(pmfxOutSurfaceVPP)->m_FrameNumber,pmfxOutSurfaceVPP->Info.Width, pmfxOutSurfaceVPP->Info.Height,
-								((char*)(&pmfxOutSurfaceVPP->Info.FourCC))[0],
-								((char*)(&pmfxOutSurfaceVPP->Info.FourCC))[1],
-								((char*)(&pmfxOutSurfaceVPP->Info.FourCC))[2],
-								((char*)(&pmfxOutSurfaceVPP->Info.FourCC))[3],
-								pmfxOutSurfaceVPP->Data.Locked,	pmfxOutSurfaceVPP->Data.FrameOrder);
+								phddlSurfaceVPPDEC->Data.Locked, phddlSurfaceVPPDEC->is_reserved(),	phddlSurfaceVPPDEC->Data.FrameOrder,
+								phddlSurfaceVPP->m_FrameNumber,phddlSurfaceVPP->index(),
+								phddlSurfaceVPP->Info.Width, phddlSurfaceVPP->Info.Height,
+								((char*)(&phddlSurfaceVPP->Info.FourCC))[0],
+								((char*)(&phddlSurfaceVPP->Info.FourCC))[1],
+								((char*)(&phddlSurfaceVPP->Info.FourCC))[2],
+								((char*)(&phddlSurfaceVPP->Info.FourCC))[3],
+								phddlSurfaceVPP->Data.Locked, phddlSurfaceVPP->is_reserved(),	phddlSurfaceVPP->Data.FrameOrder);
     				}
 
     				//setup deleter as unreserve() so it can be re-cycled
@@ -378,8 +426,7 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
 					//only output both reserved frames(or they will got unreserved automatically by shared_ptr)
 					bool bEnqueueOK = false;
 
-					if (phddlSurfaceVPPDEC->is_reserved() &&
-						phddlSurfaceVPP->is_reserved())
+					if (o1->is_reserved() && o2->is_reserved())
 					{
 						bEnqueueOK = m_outputs.put(Output(o1, o2), drop_on_overflow);
 					}
@@ -387,13 +434,14 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
 					if (!bEnqueueOK)
 					{
 						dropped_cnt++;
-						printf(ANSI_BOLD ANSI_COLOR_CYAN "Drop on overflow %d!\n" ANSI_COLOR_RESET, dropped_cnt);
+						//printf(ANSI_BOLD ANSI_COLOR_CYAN "thread %d: Drop on overflow %d!\n" ANSI_COLOR_RESET,std::this_thread::get_id(), dropped_cnt);
 						//don't need un-reserve because of shared_ptr
 					}
+
     				vpp_id++;
     			}else{
     				if(m_debug == Debug::out || m_debug == Debug::yes)
-    					fprintf(stderr, ANSI_BOLD ANSI_COLOR_RED "%s:%d SyncOperation() failed with %d\n" ANSI_COLOR_RESET, __FILE__,__LINE__, sts);
+    					fprintf(stderr, ANSI_BOLD ANSI_COLOR_RED "%s:%d SyncOperation() failed with %d\n" ANSI_COLOR_RESET, __FILENAME__,__LINE__, sts);
     			}
             }
     	}

@@ -6,8 +6,10 @@
 #include "videoframe_allocator.h"
 #include "cassert"
 
-//#define PDEBUG(s, ...) printf(s, __VA_ARGS__)
-#define PDEBUG(s, ...)
+//#define PDEBUG(...) printf( __VA_ARGS__)
+#define PDEBUG(...)
+
+
 
 //===================================================================
 struct sysmem_frame : public mfxFrameData
@@ -36,6 +38,9 @@ struct sysmem_frame : public mfxFrameData
 			this->A = this->B + 3;
 			break;
 		default:
+			printf("Unknow format:%s %dx%d\n", get_fourcc(FourCC).c_str(),
+					info.Width, info.Height);
+			assert(0);
 			this->Pitch = 0;
 			break;
 		}
@@ -64,7 +69,7 @@ mfxStatus mem_allocator_system::do_free(mfxFrameAllocResponse* response)
 	if(response->NumFrameActual <= 0) return MFX_ERR_NONE;
 
 	for(int i=0; i<response->NumFrameActual; i++)
-		delete response->mids[i];
+		delete (sysmem_frame*)(response->mids[i]);
 
 	free(response->mids);
 	return MFX_ERR_NONE;
@@ -95,8 +100,9 @@ mfxStatus mem_allocator_system::do_gethdl(mfxMemId mid, mfxHDL* handle)
 
 
 //===================================================================
-//each mfxMemId in mfxFrameAllocResponse do not contain type id
-//so its hard to distribute
+// add the binding of reference to allocator to each MemId
+// so each memory surface can be operated individually
+
 struct typped_memid
 {
 	mem_allocator*  allocator;	// which internal allocator should be responsible
@@ -261,6 +267,8 @@ mfxStatus videoframe_allocator::_lock(mfxHDL pthis, mfxMemId mid, mfxFrameData* 
 	typped_memid * pt = (typped_memid *) mid;
 	mfxStatus sts = pt->allocator->do_lock(pt->mid,ptr);
 	PDEBUG( ANSI_COLOR_YELLOW "_lock(%p) mid:%p ptr:%p sts:%d\n" ANSI_COLOR_RESET, pthis, mid, ptr, sts);
+	if(sts != MFX_ERR_NONE)
+		fprintf(stderr, ANSI_BOLD ANSI_COLOR_RED "%s:%d _lock() failed %d!\n" ANSI_COLOR_RESET,__FILE__,__LINE__, sts);
 	return sts;
 }
 mfxStatus videoframe_allocator::_unlock(mfxHDL pthis, mfxMemId mid, mfxFrameData* ptr){

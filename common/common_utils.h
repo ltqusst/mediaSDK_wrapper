@@ -11,6 +11,7 @@ Copyright(c) 2005-2014 Intel Corporation. All Rights Reserved.
 #pragma once
 
 #include <stdio.h>
+#include <string>
 
 #include "mfxvideo++.h"
 
@@ -79,6 +80,8 @@ private:
 // =================================================================
 // Utility functions, not directly tied to Media SDK functionality
 //
+
+std::string get_fourcc(mfxU32 fourcc);
 
 void PrintErrString(int err,const char* filestr,int line);
 

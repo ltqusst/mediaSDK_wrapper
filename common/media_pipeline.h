@@ -29,9 +29,11 @@ private:
 	surface_pool                 	spVPP;
 	blocking_queue<Output> 			m_outputs;
 
-	enum Debug{no=0, yes, dec, out};
+	enum Debug{no=0, yes, dec, out, st};
 	Debug							m_debug;
 	volatile bool 					m_stop;
+
+	const char *                    m_tty_color;
 };
 
 #endif

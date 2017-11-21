@@ -82,7 +82,15 @@ void ClearRGBSurfaceVMem(mfxMemId memId)
 // =================================================================
 // Utility functions, not directly tied to Intel Media SDK functionality
 //
-
+std::string get_fourcc(mfxU32 fourcc)
+{
+	std::string name;
+	for(int i=0;i<4;i++)
+	{
+		name.push_back(((char*)(&fourcc))[i]);
+	}
+	return name;
+}
 
 void PrintErrString(int err,const char* filestr,int line)
 {

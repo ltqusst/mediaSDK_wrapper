@@ -101,7 +101,7 @@ public:
 	surface1 * find(surface1 * psurf);
 
 	//Reserved surface will not be allocated again
-	bool reserve(surface1 * psurf, bool b_block_until_success);
+	bool reserve(surface1 * psurf, bool drop_on_overflow);
 	bool unreserve(surface1 * psurf);
 
 

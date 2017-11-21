@@ -1,8 +1,9 @@
 
 #include "surface_pool.h"
+#include "common_utils.h"
 
-//#define PDEBUG(s, ...) printf(s, __VA_ARGS__)
-#define PDEBUG(s, ...)
+//#define PDEBUG(...) printf(__VA_ARGS__)
+#define PDEBUG(...)
 
 #ifdef NDEBUG
 #define CONSISTENCY_CHECK 0
@@ -58,8 +59,8 @@ surface1 * surface_pool::getfree(void)
 {
 	std::lock_guard<std::mutex> guard(m_SurfaceQMutex);
 	for (auto &s : m_SurfaceAll) {
-		if (s.Data.Locked == 0) {
-			PDEBUG(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> getfree() Locking %d\n", s.index());
+		if (s.Data.Locked == 0 && !s.is_reserved()) {
+			//PDEBUG(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> getfree() Locking %d\n", s.index());
 			return &s;
 		}
 	}
@@ -83,10 +84,10 @@ surface1 * surface_pool::find(mfxU32 FrameOrder)
 
 surface1 * surface_pool::find(surface1 * psurf)
 {
-	for (auto &s : m_SurfaceAll) {
-		if (&s == psurf)
-			return &s;
-	}
+	int i = psurf->index();
+	if(i >=0 && i < m_SurfaceAll.size() && psurf == &m_SurfaceAll[i])
+		return psurf;
+
 	return NULL;
 }
 
@@ -114,6 +115,8 @@ bool surface_pool::reserve(surface1 * psurf, bool drop_on_overflow)
 		m_ReservedCnt++;
 		return true;
 	}
+
+	PDEBUG("  reserve() failed because of overflow \n");
 	return false;
 }
 
@@ -137,6 +140,13 @@ bool surface_pool::unreserve(surface1 * psurf)
 void surface_pool::debug(void)
 {
 	std::lock_guard<std::mutex> guard(m_SurfaceQMutex);
+	bool bIndexConsistent = true;
+	for (int i = 0; i < m_SurfaceAll.size(); i++)
+		if(i != m_SurfaceAll[i].index()) bIndexConsistent = false;
+
+	if(!bIndexConsistent)
+		printf(ANSI_BOLD ANSI_COLOR_RED " index in consistency found! \n" ANSI_COLOR_RESET);
+
 	printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Locked:");
 	for (int i = 0; i < m_SurfaceAll.size(); i++)
 	{

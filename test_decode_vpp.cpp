@@ -238,6 +238,14 @@ void decode(const char * bsfile, mfxIMPL impl, bool drop_on_overflow, const char
     	fSink = fopen(ofile,"wb");
     }
 
+    int dec_id = 0;
+    int vpp_id = 0;
+
+    int dec_id_disagree_cnt = 0;
+    int vpp_id_disagree_cnt = 0;
+
+    printf("Start decode [%s] with drop_on_overflow=%d\n", bsfile, drop_on_overflow);
+
     auto t_start = std::chrono::high_resolution_clock::now();
 
     m.start(bsfile, impl, drop_on_overflow);
@@ -247,7 +255,35 @@ void decode(const char * bsfile, mfxIMPL impl, bool drop_on_overflow, const char
     	MediaDecoder::Output out;
     	if(!m.get(out)) break;
 
-    	//usleep(2000);
+    	if(!out.first->is_reserved())
+    	{
+    		printf(ANSI_COLOR_RED "BUG: un-reserved DEC frame %d\n" ANSI_COLOR_RESET,
+    				out.first->m_FrameNumber);
+    	}
+    	if(!out.second->is_reserved())
+    	{
+    		printf(ANSI_COLOR_RED "BUG: un-reserved VPP frame %d\n" ANSI_COLOR_RESET,
+    				out.second->m_FrameNumber);
+    	}
+
+    	//simulate intense computation
+    	//std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
+    	if(out.first->m_FrameNumber != out.second->m_FrameNumber)
+    	{
+    		printf(ANSI_COLOR_RED "BUG: inconsistent DEC & VPP frame number: %d v %d\n" ANSI_COLOR_RESET,
+    				out.first->m_FrameNumber, out.second->m_FrameNumber);
+    	}
+
+    	if(dec_id != out.first->m_FrameNumber)
+    		dec_id_disagree_cnt ++;
+
+    	if(vpp_id != out.second->m_FrameNumber)
+    		vpp_id_disagree_cnt ++;
+
+    	dec_id ++;
+    	vpp_id ++;
+
 		while (fSink) {
 			mfxStatus sts = out.second->lock();
 			if(sts != MFX_ERR_NONE)
@@ -259,10 +295,11 @@ void decode(const char * bsfile, mfxIMPL impl, bool drop_on_overflow, const char
 			MSDK_BREAK_ON_ERROR(sts);
 
 			MSDK_BREAK_ON_ERROR(out.second->unlock());
-			printf("%sFrame number (DEC, VPP): %d, %d \n" ANSI_COLOR_RESET,
+			printf("%sFrame number (DEC, VPP): %d, %d  index %d,%d \n" ANSI_COLOR_RESET,
 				out.first->m_FrameNumber == out.second->m_FrameNumber?ANSI_COLOR_RESET:ANSI_COLOR_RED,
-				out.first->m_FrameNumber,
-				out.second->m_FrameNumber);
+
+				out.first->m_FrameNumber, out.second->m_FrameNumber,
+				out.first->index(), out.second->index());
 			break;
 		}
 		//the surface in out will automatically returned
@@ -275,7 +312,8 @@ void decode(const char * bsfile, mfxIMPL impl, bool drop_on_overflow, const char
 
     double fps = ((double)nFrame / diff.count());
     printf("\nTotal Frames: %d, Execution time: %3.2f s (%3.2f fps)\n", nFrame, diff.count(), fps);
-
+    printf("dec_id_disagree_cnt = %d\n", dec_id_disagree_cnt);
+    printf("vpp_id_disagree_cnt = %d\n", vpp_id_disagree_cnt);
     if (fSink) fclose(fSink);
 }
 
