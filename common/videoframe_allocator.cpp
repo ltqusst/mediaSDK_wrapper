@@ -6,6 +6,9 @@
 #include "videoframe_allocator.h"
 #include "cassert"
 
+//#define PDEBUG(s, ...) printf(s, __VA_ARGS__)
+#define PDEBUG(s, ...)
+
 //===================================================================
 struct sysmem_frame : public mfxFrameData
 {

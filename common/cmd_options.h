@@ -57,6 +57,8 @@ struct CmdOptionsValues {
 
 	mfxU16 Channels;
 
+	bool AutoDropFrames;
+
     bool MeasureLatency; // OPTION_MEASURE_LATENCY
 };
 

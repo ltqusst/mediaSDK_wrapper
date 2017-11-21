@@ -283,7 +283,7 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
 
     	if(phddlSurfaceDEC) {
     		phddlSurfaceDEC->m_FrameNumber = dec_id;
-    		spDEC.reserve(phddlSurfaceDEC);
+    		spDEC.reserve(phddlSurfaceDEC, drop_on_overflow);
     		dec_id ++;
     	}
 
@@ -341,12 +341,12 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
     			if (MFX_ERR_NONE == (sts=session.SyncOperation(syncpV, 60000))) {
 
     				//reserve VPP output surface & find corresponding decode output
-    				spVPP.reserve(phddlSurfaceVPP);
+    				spVPP.reserve(phddlSurfaceVPP, drop_on_overflow);
     				phddlSurfaceVPP->m_FrameNumber = vpp_id;
 
     				surface1 * phddlSurfaceVPPDEC = spDEC.find(phddlSurfaceVPP->Data.FrameOrder);
     				if(phddlSurfaceVPPDEC)
-    					spDEC.reserve(phddlSurfaceVPPDEC);
+    					spDEC.reserve(phddlSurfaceVPPDEC, drop_on_overflow);
     				else
     				{
     					fprintf(stderr,"%s:%d Cannot find decoder output by FrameOrder\n", __FILE__, __LINE__);
@@ -372,17 +372,24 @@ void MediaDecoder::decode(const char * file_url, mfxIMPL impl, bool drop_on_over
 
     				//setup deleter as unreserve() so it can be re-cycled
     				//note the deleter will be called from user thread context, so it must be multithread-safe
+					std::shared_ptr<surface1> o1(phddlSurfaceVPPDEC, [this](surface1*p) {spDEC.unreserve(p); });
+					std::shared_ptr<surface1> o2(phddlSurfaceVPP, [this](surface1*p) {spVPP.unreserve(p); });
 
-    				std::shared_ptr<surface1> o1(phddlSurfaceVPPDEC, [this](surface1*p){spDEC.unreserve(p);});
-    				std::shared_ptr<surface1> o2(phddlSurfaceVPP, [this](surface1*p){spVPP.unreserve(p);});
+					//only output both reserved frames(or they will got unreserved automatically by shared_ptr)
+					bool bEnqueueOK = false;
 
-    				if(!m_outputs.put(Output(o1, o2), drop_on_overflow))
-    				{
-    					dropped_cnt++;
-    					printf(ANSI_BOLD ANSI_COLOR_CYAN "Drop on overflow %d!\n" ANSI_COLOR_RESET, dropped_cnt);
-    					//don't need un-reserve because of shared_ptr
-    				}
+					if (phddlSurfaceVPPDEC->is_reserved() &&
+						phddlSurfaceVPP->is_reserved())
+					{
+						bEnqueueOK = m_outputs.put(Output(o1, o2), drop_on_overflow);
+					}
 
+					if (!bEnqueueOK)
+					{
+						dropped_cnt++;
+						printf(ANSI_BOLD ANSI_COLOR_CYAN "Drop on overflow %d!\n" ANSI_COLOR_RESET, dropped_cnt);
+						//don't need un-reserve because of shared_ptr
+					}
     				vpp_id++;
     			}else{
     				if(m_debug == Debug::out || m_debug == Debug::yes)

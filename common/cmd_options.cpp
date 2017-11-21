@@ -65,6 +65,7 @@ void ParseOptions(int argc, char** argv, CmdOptions* cmd_options)
         cmd_options->ctx.program = argv[0];
     }
 	cmd_options->values.Channels = 1;
+	cmd_options->values.AutoDropFrames = false;
     for (i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "--help")) {
             PrintHelp(cmd_options);
@@ -83,6 +84,8 @@ void ParseOptions(int argc, char** argv, CmdOptions* cmd_options)
 				printf("error: incorrect argument for -ch option given\n");
 				exit(-1);
 			}
+		}else if (!strcmp(argv[i], "-drop")) {
+			cmd_options->values.AutoDropFrames = true;
 		} else if ((cmd_options->ctx.options & OPTION_IMPL) && !strcmp(argv[i], "-sw")) {
             cmd_options->values.impl = MFX_IMPL_SOFTWARE;
         } else if ((cmd_options->ctx.options & OPTION_IMPL) && !strcmp(argv[i], "-hw")) {

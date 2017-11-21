@@ -13,10 +13,6 @@
 // Intel Media SDK memory allocator entrypoints....
 // Implementation of this functions is OS/Memory type specific.
 
-//#define PDEBUG(s, ...) printf(s, __VA_ARGS__)
-#define PDEBUG(s, ...)
-
-
 class mem_allocator
 {
 public:

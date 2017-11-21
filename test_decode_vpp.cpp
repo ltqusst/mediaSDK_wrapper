@@ -312,7 +312,7 @@ int main(int argc, char** argv)
 
     //ContextOpenCL &o = ContextOpenCL::instance();
 
-    bool drop_on_overflow = false;
+    bool drop_on_overflow = options.values.AutoDropFrames;
 
 	std::thread * pth[32] = { 0 };
 

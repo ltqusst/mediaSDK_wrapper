@@ -9,7 +9,6 @@
 #include <memory>
 #include <mutex>
 #include <functional>
-#include <deque>
 #include <condition_variable>
 
 #include <string.h>
@@ -21,10 +20,11 @@ class surface_pool;
 class surface1: public mfxFrameSurface1{
 public:
 	surface1(const mfxFrameAllocator & mfxAllocator,
-                 const mfxFrameInfo * pfmt = NULL):
-                	 m_bReserved(false),
-					 m_bLockedByAllocator(false),
-					 m_mfxAllocator(mfxAllocator)
+             const mfxFrameInfo * pfmt = NULL, const int index = -1):
+        m_bReserved(false),
+		m_bLockedByAllocator(false),
+		m_mfxAllocator(mfxAllocator),
+		m_index(index)
 	{
 		memset((mfxFrameSurface1*)this, 0, sizeof(mfxFrameSurface1));
 		if(pfmt)
@@ -35,7 +35,8 @@ public:
 	//have to manually write copy-constructor because of atomic member
 	surface1(const surface1 & rhs):
 		mfxFrameSurface1(rhs),
-		m_mfxAllocator(rhs.m_mfxAllocator)
+		m_mfxAllocator(rhs.m_mfxAllocator),
+		m_index(rhs.m_index)
 	{
 		m_bReserved.store(rhs.m_bReserved.load());
 		m_bLockedByAllocator = rhs.m_bLockedByAllocator;
@@ -64,13 +65,16 @@ public:
 
 	unsigned long m_FrameNumber = 0;
 
+	int index(void) { return m_index; }
+	bool is_reserved(void) { return m_bReserved.load(); }
 private:
 
 	// reserve operation is only allowed by pool object
 	// and since the pool only reserves in one decoding thread
 	// no need to use atomic
 	void reserve(bool bset)	{ m_bReserved.store(bset); }
-	bool is_reserved(void)	{ return m_bReserved.load(); }
+	
+	const int m_index;	//index in the pool;
 
 	std::atomic<bool> m_bReserved;
 	bool m_bLockedByAllocator;
@@ -89,14 +93,15 @@ public:
 	mfxStatus realloc(mfxFrameAllocRequest Request, int cntReserved = 0);
 
 	// Get free raw frame surface
-	surface1 * getfree(bool bVerbose = false);
+	surface1 * getfree(void);
 
 	int surfaceID(surface1 * psurf);
 
 	surface1 * find(mfxU32 FrameOrder);
+	surface1 * find(surface1 * psurf);
 
 	//Reserved surface will not be allocated again
-	bool reserve(surface1 * psurf);
+	bool reserve(surface1 * psurf, bool b_block_until_success);
 	bool unreserve(surface1 * psurf);
 
 
@@ -108,11 +113,13 @@ private:
 	mfxFrameAllocResponse   		m_mfxResponse;
 	const mfxFrameAllocator &      	m_mfxAllocator;
 
-	std::vector<surface1> 		m_SurfaceQueue;
+	std::vector<surface1> 			m_SurfaceAll;
 	std::mutex            			m_SurfaceQMutex;
 	int                             m_ReservedMaxCnt;
 	int                             m_ReservedCnt;
 	std::condition_variable     	m_cvReserve;
+
+	
 };
 
 #endif
