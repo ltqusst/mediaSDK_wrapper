@@ -160,6 +160,23 @@ void ClearRGBSurfaceD3D(mfxMemId memId)
     pSurface->UnlockRect();
 }
 
+
+#include <mutex>
+mfxHDL DeviceHandle::get(mfxSession session)
+{
+	static std::once_flag oc;
+	static DeviceHandle theOne;
+	std::call_once(oc, [&](){
+		CreateHWDevice(session, &theOne.m_Handle, NULL, true);
+	});
+	return theOne.m_Handle;
+}
+DeviceHandle::~DeviceHandle()
+{
+	CleanupHWDevice();
+}
+
+
 //
 // Media SDK memory allocator entrypoints....
 //

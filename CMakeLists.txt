@@ -34,17 +34,17 @@ if ( UNIX )
 	
 elseif ( WIN32 )
 	MESSAGE(STATUS "current platform: Windows")  
-	set(SRC common/common_directx11.cpp
+	set(SRC common/common_directx.cpp
 			common/cmd_options.cpp
 			common/common_utils.cpp
 			common/surface_pool.cpp
 			common/media_pipeline.cpp
 			common/videoframe_allocator.cpp)
 			
-	set(LIB libmfx_vs2017.lib DXGI.lib D3D11.lib dxva2.lib)
+	set(LIB libmfx_vs2017.lib DXGI.lib D3D9.lib dxva2.lib)
 	set(INCDIR common $ENV{INTELMEDIASDKROOT}include )
 	set(LIBDIR $ENV{INTELMEDIASDKROOT}lib\\x64 )
-	add_definitions(-DDX11_D3D=1)
+	add_definitions(-DDX9_D3D=1)
 else ()
     message( FATAL_ERROR "Only UNIX & WIN32 are supported" )
 endif ()
